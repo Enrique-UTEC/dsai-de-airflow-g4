@@ -7,7 +7,8 @@ log = logging.getLogger('airflow.task')
 def upload_to_adls(
         local_file_path = "/opt/airflow/data/sample.txt",
         container_name = "airflow",
-        blob_name = "raw/uploaded_sample.txt"
+        blob_name = "raw/uploaded_sample.txt",
+        wasb_conn_id = "azure_blob_storage"
         ):
     try:
         if not os.path.exists(local_file_path):
@@ -15,7 +16,7 @@ def upload_to_adls(
             return
         
         # Connect using the connection created in UI
-        hook = WasbHook(wasb_conn_id="azure_blob_storage")    
+        hook = WasbHook(wasb_conn_id=wasb_conn_id)    
         hook.load_file(
             file_path=local_file_path,
             container_name=container_name,
