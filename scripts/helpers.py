@@ -1,5 +1,6 @@
 from datetime import datetime
 import os
+import pandas as pd
 
 def add_date_suffix(filename, date=None):
     """
@@ -18,3 +19,8 @@ def add_date_suffix(filename, date=None):
     name, ext = os.path.splitext(filename)
     date_str = date.strftime("%Y%m%d")
     return f"{name}_{date_str}{ext}"
+
+def transformar_datos(input_file_path, output_file_path):
+    df = pd.read_csv(input_file_path)
+    df['total'] = df['cantidad'] * df['precio']
+    df.to_csv(output_file_path, index=False)
