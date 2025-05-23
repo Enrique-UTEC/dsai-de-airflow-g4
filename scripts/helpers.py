@@ -20,7 +20,16 @@ def add_date_suffix(filename, date=None):
     date_str = date.strftime("%Y%m%d")
     return f"{name}_{date_str}{ext}"
 
-def transformar_datos(input_file_path, output_file_path):
-    df = pd.read_csv(input_file_path)
+def leer_datos(path):
+    return pd.read_csv(path)
+
+def transformar_datos(df):
     df['total'] = df['cantidad'] * df['precio']
-    df.to_csv(output_file_path, index=False)
+    return df
+
+def resumir_datos(df):
+    resumen = df.groupby('producto')['total'].sum().reset_index()
+    return resumen
+
+def guardar_datos(df, path):
+    df.to_csv(path, index=False)

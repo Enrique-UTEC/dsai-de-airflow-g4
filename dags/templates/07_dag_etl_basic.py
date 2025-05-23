@@ -11,7 +11,7 @@ def transformar_datos(input_file_path, output_file_path):
     df.to_csv(output_file_path, index=False)
 
 @dag(
-    dag_id='07_dag_etl_normal',
+    dag_id='07_dag_etl_basic',
     start_date=datetime(2023, 1, 1),
     schedule="@daily",
     catchup=False,
