@@ -4,6 +4,7 @@ from scripts.azure_upload import upload_to_adls
 from scripts.helpers import add_date_suffix
 from datetime import datetime, timedelta
 from scripts.mysql_extractor import leer_datos_mysql
+from scripts.transform import transform_data
 import logging
 
 LOCAL_FILE_PATH = "/opt/airflow/data/sample.txt"
@@ -34,22 +35,27 @@ def upload_dag():
   def extraer():
     try:
       df = leer_datos_mysql()
-      df.to_csv(CSV_LOCAL_FILE_PATH, index=False)
 
       logging.info(f"Data extracted successfully. Shape: {df.shape}")
       logging.info(f"Data saved to: {CSV_LOCAL_FILE_PATH}")
 
-      return {
-          "records_count": len(df),
-          "file_path": CSV_LOCAL_FILE_PATH,
-          "columns": list(df.columns)
-      }
+      return df
     except Exception as e:
       logging.error(f"Error in data extraction: {e}")
       raise
 
   @task
-  def subir_a_azure(extraction_info):
+  def transform(df):
+    try:
+      df_transformed = transform_data(df)
+      df_transformed.to_csv(CSV_LOCAL_FILE_PATH, index=False)
+      return df_transformed
+    except Exception as e:
+      logging.error(f"Error in data transformation: {e}")
+      raise
+
+  @task
+  def subir_a_azure(transformation_result):
     try:
       new_blob_name = add_date_suffix(BLOB_NAME)
       upload_to_adls(
@@ -60,12 +66,11 @@ def upload_dag():
       )
 
       logging.info(f"File uploaded successfully to: {new_blob_name}")
-      logging.info(f"Records uploaded: {extraction_info['records_count']}")
+      logging.info(f"Dataframe shape after transformation: {transformation_result.shape}")
 
       return {
           "blob_name": new_blob_name,
-          "upload_status": "success",
-          "records_uploaded": extraction_info['records_count']
+          "upload_status": "success"
       }
 
     except Exception as e:
@@ -73,6 +78,7 @@ def upload_dag():
       raise
 
   extraction_result = extraer()
-  upload_result = subir_a_azure(extraction_result)
+  transformation_result = transform(extraction_result)
+  upload_result = subir_a_azure(transformation_result)
 
 dag = upload_dag()
