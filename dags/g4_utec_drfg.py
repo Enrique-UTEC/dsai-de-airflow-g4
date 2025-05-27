@@ -36,9 +36,7 @@ def upload_dag():
     try:
       df = leer_datos_mysql()
 
-      logging.info(f"Data extracted successfully. Shape: {df.shape}")
-      logging.info(f"Data saved to: {CSV_LOCAL_FILE_PATH}")
-
+      logging.info(f"Data extracted correctamente. Shape: {df.shape}")
       return df
     except Exception as e:
       logging.error(f"Error in data extraction: {e}")
@@ -65,8 +63,8 @@ def upload_dag():
           wasb_conn_id=WASB_CONN_ID
       )
 
-      logging.info(f"File uploaded successfully to: {new_blob_name}")
-      logging.info(f"Dataframe shape after transformation: {transformation_result.shape}")
+      logging.info(f"Se subió el archivo: {new_blob_name}")
+      logging.info(f"Shape del dataframe: {transformation_result.shape}")
 
       return {
           "blob_name": new_blob_name,

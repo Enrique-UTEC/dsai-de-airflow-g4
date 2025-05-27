@@ -14,7 +14,6 @@ def transform_data(df: pd.DataFrame) -> pd.DataFrame:
   df['day_of_week'] = df['transaction_date'].dt.day_name()
   df['is_weekend'] = df['transaction_date'].dt.weekday >= 5
 
-  # 3. CATEGORIZACIÓN DE TRANSACCIONES
   df['transaction_category'] = df['transaction_type'].map({
       'DEPOSIT': 'Income',
       'WITHDRAWAL': 'Expense',
@@ -22,15 +21,9 @@ def transform_data(df: pd.DataFrame) -> pd.DataFrame:
       'PAYMENT': 'Payment'
   }).fillna('Other')
 
-  # 4. MONTOS ABSOLUTOS
   df['amount_abs'] = df['amount'].abs()
   df['is_large_transaction'] = df['amount_abs'] > 1000
-
-  # 5. INDICADORES DE RIESGO
-  # Transacciones en horarios inusuales (ejemplo: fines de semana)
   df['weekend_transaction'] = df['is_weekend']
-
-  # Transacciones grandes
   df['high_value_flag'] = df['amount_abs'] > df['amount_abs'].quantile(0.95)
 
   return df
