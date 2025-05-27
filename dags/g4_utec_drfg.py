@@ -8,8 +8,8 @@ from scripts.transform import transform_data
 import logging
 
 LOCAL_FILE_PATH = "/opt/airflow/data/sample.txt"
-CONTAINER_NAME = "airflow"
-BLOB_NAME = "raw/G0/banking_data.csv"
+CONTAINER_NAME = "datalake"
+BLOB_NAME = "raw/airflow/G4/banking_data.csv"
 CSV_LOCAL_FILE_PATH = "/opt/airflow/data/banking_data.csv"
 WASB_CONN_ID = "utec_blob_storage"
 
@@ -21,7 +21,7 @@ default_args = {
 
 
 @dag(
-    dag_id="g0_atm",
+    dag_id="g4_utec_drfg",
     description="Uploads a local file to Azure Blob Storage with a date suffix.",
     default_args=default_args,
     start_date=datetime(2025, 1, 1, tzinfo=timezone("America/Bogota")),
