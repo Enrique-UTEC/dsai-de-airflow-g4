@@ -5,12 +5,18 @@ from scripts.helpers import add_date_suffix
 from datetime import datetime, timedelta
 from scripts.mysql_extractor import leer_datos_mysql
 from scripts.transform import transform_data
+from scripts.mongo_extractor import leer_datos_mongo
 import logging
 
 LOCAL_FILE_PATH = "/opt/airflow/data/sample.txt"
 CONTAINER_NAME = "datalake"
-BLOB_NAME = "raw/airflow/G4/banking_data.csv"
-CSV_LOCAL_FILE_PATH = "/opt/airflow/data/banking_data.csv"
+
+BLOB_NAME = "raw/airflow/G4/transactions_data.csv"
+CSV_LOCAL_FILE_PATH = "/opt/airflow/data/transactions_data.csv"
+
+MONGO_BLOB_NAME = "raw/airflow/G4/accounts_data.csv"
+MONGO_CSV_PATH = "/opt/airflow/data/accounts_data.csv"
+
 WASB_CONN_ID = "utec_blob_storage"
 
 default_args = {
@@ -32,7 +38,7 @@ default_args = {
 def upload_dag():
 
   @task
-  def extraer():
+  def extraer_mysql():
     try:
       df = leer_datos_mysql()
 
@@ -43,7 +49,22 @@ def upload_dag():
       raise
 
   @task
-  def transform(df):
+  def extraer_mongo():
+    try:
+      # Extract all accounts from MongoDB
+      df = leer_datos_mongo()
+      # Alternative: Extract only active accounts
+      # df = leer_cuentas_activas()
+
+      logging.info(f"MongoDB data extracted correctamente. Shape: {df.shape}")
+      logging.info(f"Columns: {list(df.columns)}")
+      return df
+    except Exception as e:
+      logging.error(f"Error in MongoDB data extraction: {e}")
+      raise
+
+  @task
+  def transform_mysql(df):
     try:
       df_transformed = transform_data(df)
       df_transformed.to_csv(CSV_LOCAL_FILE_PATH, index=False)
@@ -53,7 +74,17 @@ def upload_dag():
       raise
 
   @task
-  def subir_a_azure(transformation_result):
+  def transform_mongo(df):
+    try:
+      df.to_csv(MONGO_CSV_PATH, index=False)
+      logging.info(f"MongoDB data saved to {MONGO_CSV_PATH}")
+      return df
+    except Exception as e:
+      logging.error(f"Error processing MongoDB data: {e}")
+      raise
+
+  @task
+  def subir_mysql_a_azure(transformation_result):
     try:
       new_blob_name = add_date_suffix(BLOB_NAME)
       upload_to_adls(
@@ -75,8 +106,40 @@ def upload_dag():
       logging.error(f"Error uploading to Azure: {e}")
       raise
 
-  extraction_result = extraer()
-  transformation_result = transform(extraction_result)
-  upload_result = subir_a_azure(transformation_result)
+  @task
+  def subir_mongo_a_azure(transformation_result):
+    try:
+      new_blob_name = add_date_suffix(MONGO_BLOB_NAME)
+      upload_to_adls(
+          local_file_path=MONGO_CSV_PATH,
+          container_name=CONTAINER_NAME,
+          blob_name=new_blob_name,
+          wasb_conn_id=WASB_CONN_ID
+      )
+
+      logging.info(f"MongoDB file uploaded: {new_blob_name}")
+      logging.info(f"Shape del dataframe: {transformation_result.shape}")
+
+      return {
+          "blob_name": new_blob_name,
+          "upload_status": "success",
+          "source": "mongodb"
+      }
+
+    except Exception as e:
+      logging.error(f"Error uploading MongoDB data to Azure: {e}")
+      raise
+
+  # Task execution flow
+  # MySQL pipeline
+  mysql_extraction = extraer_mysql()
+  mysql_transformation = transform_mysql(mysql_extraction)
+  mysql_upload = subir_mysql_a_azure(mysql_transformation)
+
+  # MongoDB pipeline
+  mongo_extraction = extraer_mongo()
+  mongo_transformation = transform_mongo(mongo_extraction)
+  mongo_upload = subir_mongo_a_azure(mongo_transformation)
+
 
 dag = upload_dag()
