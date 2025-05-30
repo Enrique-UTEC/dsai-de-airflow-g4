@@ -7,6 +7,7 @@ from scripts.mysql_extractor import leer_datos_mysql
 from scripts.transform import transform_data
 from scripts.mongo_extractor import leer_datos_mongo
 from scripts.s3_extractor import leer_datos_s3
+from scripts.azure_extractor import leer_datos_azure_blob
 import logging
 
 LOCAL_FILE_PATH = "/opt/airflow/data/sample.txt"
@@ -21,6 +22,8 @@ MONGO_CSV_PATH = "/opt/airflow/data/accounts_data.csv"
 S3_BLOB_NAME = "raw/airflow/G4/customers_data.csv"
 S3_CSV_PATH = "/opt/airflow/data/customers_data.csv"
 
+AZURE_BLOB_NAME = "raw/airflow/G4/branches_data.csv"
+AZURE_BLOB_CSV_PATH = "/opt/airflow/data/branches_data.csv"
 
 WASB_CONN_ID = "utec_blob_storage"
 
@@ -76,6 +79,19 @@ def upload_dag():
       raise
 
   @task
+  def extraer_azure_blob():
+    try:
+      df = leer_datos_azure_blob()
+      logging.info(
+          f"Azure Blob data extracted correctamente. Shape: {df.shape}")
+      logging.info(f"Columns: {list(df.columns)}")
+      return df
+    except Exception as e:
+      logging.error(f"Error in Azure Blob data extraction: {e}")
+      raise
+
+  ################################
+  @task
   def transform_mysql(df):
     try:
       df_transformed = transform_data(df)
@@ -106,89 +122,62 @@ def upload_dag():
       raise
 
   @task
-  def subir_mysql_a_azure(transformation_result):
+  def transform_azure_blob(df):
     try:
-      new_blob_name = add_date_suffix(BLOB_NAME)
-      upload_to_adls(
-          local_file_path=CSV_LOCAL_FILE_PATH,
-          container_name=CONTAINER_NAME,
-          blob_name=new_blob_name,
-          wasb_conn_id=WASB_CONN_ID
-      )
-
-      logging.info(f"Se subió el archivo: {new_blob_name}")
-      logging.info(f"Shape del dataframe: {transformation_result.shape}")
-
-      return {
-          "blob_name": new_blob_name,
-          "upload_status": "success"
-      }
-
+      # Save Azure Blob data as CSV (apply transformations if needed)
+      df.to_csv(AZURE_BLOB_CSV_PATH, index=False)
+      logging.info(f"Azure Blob data saved to {AZURE_BLOB_CSV_PATH}")
+      return df
     except Exception as e:
-      logging.error(f"Error uploading to Azure: {e}")
+      logging.error(f"Error processing Azure Blob data: {e}")
       raise
 
+  ################################
+
   @task
-  def subir_mongo_a_azure(transformation_result):
+  def subir_a_azure(transformation_result, local_file_path: str, blob_name: str, source_name: str):
     try:
-      new_blob_name = add_date_suffix(MONGO_BLOB_NAME)
+      new_blob_name = add_date_suffix(blob_name)
       upload_to_adls(
-          local_file_path=MONGO_CSV_PATH,
+          local_file_path=local_file_path,
           container_name=CONTAINER_NAME,
           blob_name=new_blob_name,
           wasb_conn_id=WASB_CONN_ID
       )
 
-      logging.info(f"MongoDB file uploaded: {new_blob_name}")
+      logging.info(f"{source_name} file uploaded: {new_blob_name}")
       logging.info(f"Shape del dataframe: {transformation_result.shape}")
 
       return {
           "blob_name": new_blob_name,
           "upload_status": "success",
-          "source": "mongodb"
+          "source": source_name
       }
 
     except Exception as e:
-      logging.error(f"Error uploading MongoDB data to Azure: {e}")
-      raise
-
-  @task
-  def subir_s3_a_azure(transformation_result):
-    try:
-      new_blob_name = add_date_suffix(S3_BLOB_NAME)
-      upload_to_adls(
-          local_file_path=S3_CSV_PATH,
-          container_name=CONTAINER_NAME,
-          blob_name=new_blob_name,
-          wasb_conn_id=WASB_CONN_ID
-      )
-
-      logging.info(f"S3 file uploaded to Azure: {new_blob_name}")
-      logging.info(f"Shape del dataframe: {transformation_result.shape}")
-
-      return {
-          "blob_name": new_blob_name,
-          "upload_status": "success",
-          "source": "s3"
-      }
-    except Exception as e:
-      logging.error(f"Error uploading S3 data to Azure: {e}")
+      logging.error(f"Error uploading {source_name} data to Azure: {e}")
       raise
 
   # Task execution flow
   # MySQL pipeline
   mysql_extraction = extraer_mysql()
   mysql_transformation = transform_mysql(mysql_extraction)
-  mysql_upload = subir_mysql_a_azure(mysql_transformation)
+  mysql_upload = subir_a_azure(mysql_transformation, CSV_LOCAL_FILE_PATH, BLOB_NAME, "mysql")
 
   # MongoDB pipeline
   mongo_extraction = extraer_mongo()
   mongo_transformation = transform_mongo(mongo_extraction)
-  mongo_upload = subir_mongo_a_azure(mongo_transformation)
+  mongo_upload = subir_a_azure(mongo_transformation, MONGO_CSV_PATH, MONGO_BLOB_NAME, "mongodb")
 
   # S3 pipeline
   s3_extraction = extraer_s3()
   s3_transformation = transform_s3(s3_extraction)
-  s3_upload = subir_s3_a_azure(s3_transformation)
-  
+  s3_upload = subir_a_azure(s3_transformation, S3_CSV_PATH, S3_BLOB_NAME, "s3")
+
+  # Azure-blob pipeline
+  azure_extraction = extraer_azure_blob()
+  azure_transformation = transform_azure_blob(azure_extraction)
+  azure_upload = subir_a_azure(azure_transformation, AZURE_BLOB_CSV_PATH, AZURE_BLOB_NAME, "azure_blob")
+
+
 dag = upload_dag()

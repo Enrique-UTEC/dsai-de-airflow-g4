@@ -4,14 +4,6 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- Drop tables if they exist
 DROP TABLE IF EXISTS transactions;
 
--- -- Create branches table
--- CREATE TABLE branches (
---     branch_id VARCHAR(10) PRIMARY KEY,
---     name VARCHAR(100) NOT NULL,
---     city VARCHAR(50) NOT NULL,
---     country VARCHAR(50) NOT NULL
--- );
-
 CREATE TABLE transactions (
     transaction_id VARCHAR(10) PRIMARY KEY,
     account_id VARCHAR(10) NOT NULL,
@@ -20,14 +12,6 @@ CREATE TABLE transactions (
     transaction_type VARCHAR(20) NOT NULL,
     branch_id VARCHAR(10) NOT NULL
 );
-
--- Insert data into branches table
--- INSERT INTO branches (branch_id, name, city, country) VALUES
--- ('B01', 'Agencia Central Lima', 'Lima', 'Peru'),
--- ('B02', 'Oficina Providencia', 'Santiago', 'Chile'),
--- ('B03', 'Agencia San Isidro', 'Bogotá', 'Colombia'),
--- ('B04', 'Sucursal Miraflores', 'Arequipa', 'Peru'),
--- ('B05', 'Sucursal Arequipa', 'Cusco', 'Peru');
 
 -- Insert data into transactions table
 INSERT INTO transactions (transaction_id, account_id, date, amount, transaction_type, branch_id) VALUES
