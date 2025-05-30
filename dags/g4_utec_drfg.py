@@ -6,6 +6,7 @@ from datetime import datetime, timedelta
 from scripts.mysql_extractor import leer_datos_mysql
 from scripts.transform import transform_data
 from scripts.mongo_extractor import leer_datos_mongo
+from scripts.s3_extractor import leer_datos_s3
 import logging
 
 LOCAL_FILE_PATH = "/opt/airflow/data/sample.txt"
@@ -16,6 +17,10 @@ CSV_LOCAL_FILE_PATH = "/opt/airflow/data/transactions_data.csv"
 
 MONGO_BLOB_NAME = "raw/airflow/G4/accounts_data.csv"
 MONGO_CSV_PATH = "/opt/airflow/data/accounts_data.csv"
+
+S3_BLOB_NAME = "raw/airflow/G4/customers_data.csv"
+S3_CSV_PATH = "/opt/airflow/data/customers_data.csv"
+
 
 WASB_CONN_ID = "utec_blob_storage"
 
@@ -51,16 +56,23 @@ def upload_dag():
   @task
   def extraer_mongo():
     try:
-      # Extract all accounts from MongoDB
       df = leer_datos_mongo()
-      # Alternative: Extract only active accounts
-      # df = leer_cuentas_activas()
-
       logging.info(f"MongoDB data extracted correctamente. Shape: {df.shape}")
       logging.info(f"Columns: {list(df.columns)}")
       return df
     except Exception as e:
       logging.error(f"Error in MongoDB data extraction: {e}")
+      raise
+
+  @task
+  def extraer_s3():
+    try:
+      df = leer_datos_s3()
+      logging.info(f"S3 data extracted correctamente. Shape: {df.shape}")
+      logging.info(f"Columns: {list(df.columns)}")
+      return df
+    except Exception as e:
+      logging.error(f"Error in S3 data extraction: {e}")
       raise
 
   @task
@@ -81,6 +93,16 @@ def upload_dag():
       return df
     except Exception as e:
       logging.error(f"Error processing MongoDB data: {e}")
+      raise
+
+  @task
+  def transform_s3(df):
+    try:
+      df.to_csv(S3_CSV_PATH, index=False)
+      logging.info(f"S3 data saved to {S3_CSV_PATH}")
+      return df
+    except Exception as e:
+      logging.error(f"Error processing S3 data: {e}")
       raise
 
   @task
@@ -130,6 +152,29 @@ def upload_dag():
       logging.error(f"Error uploading MongoDB data to Azure: {e}")
       raise
 
+  @task
+  def subir_s3_a_azure(transformation_result):
+    try:
+      new_blob_name = add_date_suffix(S3_BLOB_NAME)
+      upload_to_adls(
+          local_file_path=S3_CSV_PATH,
+          container_name=CONTAINER_NAME,
+          blob_name=new_blob_name,
+          wasb_conn_id=WASB_CONN_ID
+      )
+
+      logging.info(f"S3 file uploaded to Azure: {new_blob_name}")
+      logging.info(f"Shape del dataframe: {transformation_result.shape}")
+
+      return {
+          "blob_name": new_blob_name,
+          "upload_status": "success",
+          "source": "s3"
+      }
+    except Exception as e:
+      logging.error(f"Error uploading S3 data to Azure: {e}")
+      raise
+
   # Task execution flow
   # MySQL pipeline
   mysql_extraction = extraer_mysql()
@@ -141,5 +186,9 @@ def upload_dag():
   mongo_transformation = transform_mongo(mongo_extraction)
   mongo_upload = subir_mongo_a_azure(mongo_transformation)
 
-
+  # S3 pipeline
+  s3_extraction = extraer_s3()
+  s3_transformation = transform_s3(s3_extraction)
+  s3_upload = subir_s3_a_azure(s3_transformation)
+  
 dag = upload_dag()
