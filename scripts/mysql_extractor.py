@@ -44,28 +44,16 @@ class MySQLExtractor:
                 connection.close()
                 logger.info("MySQL connection closed")
     
-    def extract_banking_summary(self) -> pd.DataFrame:
+    def extract_transactions(self) -> pd.DataFrame:
         query = """
         SELECT 
             t.transaction_id,
+            t.account_id,
             t.date as transaction_date,
             t.amount,
             t.transaction_type,
-            a.account_id,
-            a.account_type,
-            a.currency,
-            a.status as account_status,
-            c.customer_id,
-            c.full_name,
-            c.nationality,
-            b.branch_id,
-            b.name as branch_name,
-            b.city,
-            b.country
+            t.branch_id
         FROM transactions t
-        JOIN accounts a ON t.account_id = a.account_id
-        JOIN customers c ON a.customer_id = c.customer_id
-        JOIN branches b ON t.branch_id = b.branch_id
         ORDER BY t.date DESC, t.transaction_id
         """
         return self.execute_query(query)
@@ -75,8 +63,8 @@ def leer_datos_mysql() -> pd.DataFrame:
     extractor = MySQLExtractor()
     
     try:
-        logger.info("Extracting banking data from MySQL")
-        return extractor.extract_banking_summary()
+        logger.info("Extracting transactions data from MySQL")
+        return extractor.extract_transactions()
             
     except Exception as e:
         logger.error(f"Error in data extraction: {e}")
