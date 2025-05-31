@@ -92,6 +92,8 @@ x-airflow-common:
       condition: service_healthy
     mysql:
       condition: service_healthy
+    mongodb:
+      condition: service_healthy
 
 services:
   postgres:
@@ -327,6 +329,29 @@ services:
       retries: 5
       start_period: 30s
     restart: always
+
+  mongodb:
+    image: mongo:7.0
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+      MONGO_INITDB_DATABASE: airflow_db
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb-data-volume:/data/db
+      - mongodb-config-volume:/data/configdb
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+      start_period: 40s
+    restart: always
+
 volumes:
   postgres-db-volume:
   mysql-db-volume:
+  mongodb-data-volume:
+  mongodb-config-volume:
